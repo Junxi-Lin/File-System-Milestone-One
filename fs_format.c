@@ -3,11 +3,11 @@
 #include <string.h>
 #include <time.h>
 
-#define BLOCK_SIZE 512        
-#define TOTAL_BLOCKS 1000     
-#define MAX_NAME_LEN 255      
+#define BLOCK_SIZE 512
+#define TOTAL_BLOCKS 1000
+#define MAX_NAME_LEN 255
 
-#pragma pack(1)             
+#pragma pack(1)
 
 
 typedef struct {
@@ -48,20 +48,20 @@ int main() {
 
     FILE *fp = fopen("volume.dat", "wb+");        // Create the disk file
     if (fp == NULL) {
-        printf("Error opening file.\n");         
+        printf("Error opening file.\n");
         return 1;
     }
 
     char emptyBlock[BLOCK_SIZE];
-    memset(emptyBlock, 0, BLOCK_SIZE);            
+    memset(emptyBlock, 0, BLOCK_SIZE);
 
     for (int i = 0; i < TOTAL_BLOCKS; i++) {
         fwrite(emptyBlock, BLOCK_SIZE, 1, fp);    // Write empty blocks
     }
 
-    int vcbBlock = 0;                             
-    int rootBlock = 1;                           
-    int freeMapStart = 2;                         
+    int vcbBlock = 0;
+    int rootBlock = 1;
+    int freeMapStart = 2;
 
     int bitmapSize = TOTAL_BLOCKS;                // 1 byte per block
     int freeMapBlocks = (bitmapSize + BLOCK_SIZE - 1) / BLOCK_SIZE; 
@@ -71,12 +71,12 @@ int main() {
     int usedBlocks = 2 + freeMapBlocks;           // VCB + root + bitmap
 
     for (int i = 0; i < usedBlocks; i++) {
-        bitmap[i] = 1;                            // Mark used blocks
+        bitmap[i] = 1;                            // Mark used block
     }
 
     int freeBlockCount = TOTAL_BLOCKS - usedBlocks; // Remaining free blocks
 
-    
+
     for (int i = 0; i < freeMapBlocks; i++) {
         writeBlock(fp, freeMapStart + i, bitmap + i * BLOCK_SIZE, BLOCK_SIZE);
     }
@@ -84,7 +84,7 @@ int main() {
     DirectoryEntry root[2];
     memset(root, 0, sizeof(root));
 
-    time_t now = time(NULL);                  
+    time_t now = time(NULL);
 
     strcpy(root[0].name, ".");                    // Current directory
     root[0].location = rootBlock;
@@ -98,9 +98,9 @@ int main() {
     root[1].dateCreated = now;
     root[1].dateModified = now;
 
-    writeBlock(fp, rootBlock, root, sizeof(root)); 
+    writeBlock(fp, rootBlock, root, sizeof(root));
 
-    
+
     VCB vcb;
 
     vcb.magicNumber = 12345;                      // Filesystem identifier
@@ -112,9 +112,9 @@ int main() {
     vcb.rootDirStart = rootBlock;
     vcb.rootDirLength = 1;
 
-    writeBlock(fp, vcbBlock, &vcb, sizeof(VCB));  
+    writeBlock(fp, vcbBlock, &vcb, sizeof(VCB));
 
- 
+
     free(bitmap);                                 // Free memory
     fclose(fp);                                   // Close file
 
