@@ -1,0 +1,124 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+#define BLOCK_SIZE 512        
+#define TOTAL_BLOCKS 1000     
+#define MAX_NAME_LEN 255      
+
+#pragma pack(1)             
+
+
+typedef struct {
+
+    int magicNumber;         // Unique identifier for filesystem
+    int blockSize;           // Size of each block in bytes
+    int totalBlocks;         // Total number of blocks on disk
+    int freeBlockCount;      // Number of free blocks remaining
+    int freeMapStart;        // Starting block of free space bitmap
+    int freeMapLength;       // Length of free space bitmap (in blocks)
+    int rootDirStart;        // Starting block of root directory
+    int rootDirLength;       // Length of root directory (in blocks)
+
+} VCB;
+
+typedef struct {
+
+    char name[MAX_NAME_LEN]; // File or directory name
+    int size;                // File size in bytes
+    int location;            // Starting block of file
+    int permissions;         // Permissions for file type
+    time_t dateCreated;      // Creation timestamp
+    time_t dateModified;     // Last modified timestamp
+
+} DirectoryEntry;
+
+#pragma pack()               // go back to normal struct alignment
+
+void writeBlock(FILE *fp, int blockNum, void *data, size_t size) {
+
+    fseek(fp, blockNum * BLOCK_SIZE, SEEK_SET);   // Jump to correct block
+    fwrite(data, size, 1, fp);                    // Write data to disk
+
+}
+
+
+int main() {
+
+    FILE *fp = fopen("volume.dat", "wb+");        // Create the disk file
+    if (fp == NULL) {
+        printf("Error opening file.\n");         
+        return 1;
+    }
+
+    char emptyBlock[BLOCK_SIZE];
+    memset(emptyBlock, 0, BLOCK_SIZE);            
+
+    for (int i = 0; i < TOTAL_BLOCKS; i++) {
+        fwrite(emptyBlock, BLOCK_SIZE, 1, fp);    // Write empty blocks
+    }
+
+    int vcbBlock = 0;                             
+    int rootBlock = 1;                           
+    int freeMapStart = 2;                         
+
+    int bitmapSize = TOTAL_BLOCKS;                // 1 byte per block
+    int freeMapBlocks = (bitmapSize + BLOCK_SIZE - 1) / BLOCK_SIZE; 
+
+    unsigned char *bitmap = calloc(bitmapSize, sizeof(unsigned char));
+
+    int usedBlocks = 2 + freeMapBlocks;           // VCB + root + bitmap
+
+    for (int i = 0; i < usedBlocks; i++) {
+        bitmap[i] = 1;                            // Mark used blocks
+    }
+
+    int freeBlockCount = TOTAL_BLOCKS - usedBlocks; // Remaining free blocks
+
+    
+    for (int i = 0; i < freeMapBlocks; i++) {
+        writeBlock(fp, freeMapStart + i, bitmap + i * BLOCK_SIZE, BLOCK_SIZE);
+    }
+
+    DirectoryEntry root[2];
+    memset(root, 0, sizeof(root));
+
+    time_t now = time(NULL);                  
+
+    strcpy(root[0].name, ".");                    // Current directory
+    root[0].location = rootBlock;
+    root[0].permissions = 1;
+    root[0].dateCreated = now;
+    root[0].dateModified = now;
+
+    strcpy(root[1].name, "..");                   // Parent directory
+    root[1].location = rootBlock;
+    root[1].permissions = 1;
+    root[1].dateCreated = now;
+    root[1].dateModified = now;
+
+    writeBlock(fp, rootBlock, root, sizeof(root)); 
+
+    
+    VCB vcb;
+
+    vcb.magicNumber = 12345;                      // Filesystem identifier
+    vcb.blockSize = BLOCK_SIZE;
+    vcb.totalBlocks = TOTAL_BLOCKS;
+    vcb.freeBlockCount = freeBlockCount;
+    vcb.freeMapStart = freeMapStart;
+    vcb.freeMapLength = freeMapBlocks;
+    vcb.rootDirStart = rootBlock;
+    vcb.rootDirLength = 1;
+
+    writeBlock(fp, vcbBlock, &vcb, sizeof(VCB));  
+
+ 
+    free(bitmap);                                 // Free memory
+    fclose(fp);                                   // Close file
+
+    printf("File system start work.\n");
+
+    return 0;
+}
